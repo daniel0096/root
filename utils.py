@@ -2,7 +2,14 @@ from typing import TypeVar, Callable, Dict, Any, Optional
 from functools import wraps
 from enum import Enum
 
+import pygame
+
+import os
+
+MAX_NAME_LEN = 12
+MAX_LEVEL = 19
 DEBUG_MODE = 1
+FONT_SIZE_BOUNDS = [8,72]
 
 class eMenuState(Enum):
     """
@@ -14,7 +21,6 @@ class eMenuState(Enum):
     MENU_STATE_OPTIONS = 3
     MENU_STATE_LEADER_BOARD = 4
     MENU_STATE_EXIT = 5
-
 
 class eLogLevel(Enum):
     """
@@ -33,6 +39,7 @@ class eDirType(Enum):
     DIR_TYPE_NONE = 0
     DIR_TYPE_LOG = 1
     DIR_TYPE_CONFIG = 2
+    DIR_TYPE_ASSETS = 3
 
 
 class eFileType(Enum):
@@ -43,12 +50,19 @@ class eFileType(Enum):
     FILE_SYSERR = 2
     FILE_CONFIG = 3
 
+class eFontType(Enum):
+    FONT_TYPE_UPHEAVAL = 1
+
+font_type_map: Dict[eFontType, list[str]] = {
+    eFontType.FONT_TYPE_UPHEAVAL: ["upheaval", "upheavtt"]
+}
 
 T = TypeVar("T")
 
 working_directories: Dict[eDirType, str] = {
     eDirType.DIR_TYPE_LOG: "log",
-    eDirType.DIR_TYPE_CONFIG: "config"
+    eDirType.DIR_TYPE_CONFIG: "config",
+    eDirType.DIR_TYPE_ASSETS: "assets",
 }
 """Maps directory types to relative folder names."""
 
@@ -131,7 +145,7 @@ def require_conditions(
         @wraps(func)
         def wrapper(self: Any, *args, **kwargs) -> T:
             if check_class_attr:
-                value = getattr(self.__class__, check_class_attr, None)
+                value = getattr(self, check_class_attr, None)
                 if not value:
                     raise exception(f"Class attribute '{check_class_attr}' is not set or empty.")
 
@@ -170,3 +184,45 @@ def filename_from_enum(file_type: Enum) -> str:
         str: File name corresponding to the enum value.
     """
     return file_name_map.get(file_type, "default.txt")
+
+def base_path() -> str:
+    cur_path: str = os.path.abspath(__file__)
+    return os.path.dirname(os.path.dirname(cur_path))
+
+_font_cache: dict[tuple[eFontType, int], pygame.font.Font] = {}
+
+def get_font(font_type: eFontType, font_size: int) -> Optional[pygame.font.Font]:
+    key = (font_type, font_size)
+    if key in _font_cache:
+        return _font_cache[key]
+
+    font = load_font(font_type, font_size)
+    if font:
+        _font_cache[key] = font
+    return font
+
+
+def load_font(font_type: eFontType, font_size: int) -> Optional[pygame.font.Font]:
+
+    if font_size not in range(FONT_SIZE_BOUNDS[0], FONT_SIZE_BOUNDS[1]):
+        return False
+
+    font_info = font_type_map.get(font_type, "Font none type.")
+
+    if not font_info:
+        print(f"[FONT] Unknown font type.")
+        return None
+
+    folder, file_name = font_info
+
+    font_path = os.path.join(base_path(), "assets", "fonts", folder, file_name + ".ttf")
+
+    if not os.path.exists(font_path):
+        print(f"[Font] Font file not found: {font_path}")
+        return None
+
+    try:
+        return pygame.font.Font(font_path, font_size)
+    except Exception as e:
+        print(f"[Font] Failed to load font: {e}")
+        return None

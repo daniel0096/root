@@ -4,7 +4,6 @@ from typing import TypeAlias, Optional, Union
 
 eDir: TypeAlias = utils.eDirType
 
-@utils.singleton
 class FileManager:
     """
     Singleton class that handles file operations such as reading, writing and creating files
@@ -17,13 +16,12 @@ class FileManager:
         _file_name (str): Last file name used by the instance.
     """
 
-    working_dir: str = None
-
     def __init__(self):
         """
         Initializes the FileManager instance.
         """
         self._file_name: str = None
+        self.working_dir: Optional[str] = None
 
     @utils.require_conditions(check_class_attr="working_dir", check_args_not_null=True)
     def create_file(self, file_name: str) -> bool:
@@ -39,6 +37,10 @@ class FileManager:
 
         full_path = os.path.join(self.working_dir, file_name)
         
+        if os.path.exists(full_path):
+            print("File in the given path already exists returning false.")
+            return False
+
         print(full_path)
 
         try:
@@ -106,37 +108,15 @@ class FileManager:
             print(f"There was an issue while writing to the file: {err}")
             return False
 
-    @classmethod
-    def set_working_path(cls, dir_type: eDir):
-        """
-        Sets the working directory based on the directory type.
-
-        Args:
-            dir_type (eDirType): Enum specifying the desired working directory (log or config).
-
-        Raises:
-            utils.CheckException: If the directory type is unknown.
-        """
-
-        cur_path: str = os.path.abspath(__file__)
-
-        root_path: str = os.path.dirname(os.path.dirname(cur_path))
+    def set_working_path(self, dir_type: Union[eDir, str]):
+        root_path = utils.base_path()
         folder_name = utils.working_directories.get(dir_type)
 
         if folder_name is None:
             raise utils.CheckException(f"Unknown directory type: {dir_type}")
 
-        cls.working_dir = os.path.join(root_path, folder_name)
-
-        if not os.path.exists(cls.working_dir):
-            os.makedirs(cls.working_dir)
-
-    def build_init_files(self) -> bool:
-        self.set_working_path(eDir.DIR_TYPE_LOG)
-        self.create_file("sysser.txt")
-        self.create_file("syslog.txt")
-        self.set_working_path(eDir.DIR_TYPE_CONFIG)
-        self.create_file("config.cfg")
+        self.working_dir = os.path.join(root_path, folder_name)
+        os.makedirs(self.working_dir, exist_ok=True)
 
 if __name__ == "__main__":
     """
